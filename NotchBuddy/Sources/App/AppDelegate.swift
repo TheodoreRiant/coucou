@@ -63,10 +63,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                            styleMask: [.titled, .closable, .miniaturizable, .resizable],
                            backing: .buffered, defer: false)
         win.title = "Settings — Coucou"
-        let host = NSHostingView(rootView: SettingsView())
-        host.sizingOptions = [.minSize]
-        win.contentView = host
-        win.contentMinSize = NSSize(width: 640, height: 420)
+        // A hosting controller, not a bare hosting view: the toolbar and the
+        // navigation title of the SwiftUI NavigationSplitView only reach the
+        // window through the responder chain of a view controller.
+        win.contentViewController = NSHostingController(rootView: SettingsView())
+        win.toolbarStyle = .unified
+        win.contentMinSize = NSSize(width: 720, height: 480)
         win.isReleasedWhenClosed = false
         placeBelowIsland(win)
         settingsWindow = win

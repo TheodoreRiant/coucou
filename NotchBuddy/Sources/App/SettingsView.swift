@@ -103,70 +103,11 @@ struct SettingsView: View {
     // MARK: - Body
 
     var body: some View {
-        HStack(spacing: 0) {
-            // Sidebar — 200 pt, sidebar visual effect background
-            ZStack(alignment: .topLeading) {
-                SidebarBackground()
-                VStack(alignment: .leading, spacing: 0) {
-                    // Header
-                    HStack(alignment: .center, spacing: 10) {
-                        Image(nsImage: NSApplication.shared.applicationIconImage)
-                            .resizable()
-                            .frame(width: 32, height: 32)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text("Coucou")
-                                .font(.system(size: 13, weight: .semibold))
-                            Text(appVersion)
-                                .font(.system(size: 11))
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 16)
-                    .padding(.bottom, 10)
-                    Divider()
-                    List(selection: Binding(
-                        get: { Optional(selectedSection) },
-                        set: { if let v = $0 { selectedSection = v; statusMessage = "" } }
-                    )) {
-                        SettingsSidebarRow(title: "General",      icon: "gearshape.fill",                    color: "#8E939C").tag("general")
-                        SettingsSidebarRow(title: "Active pills", icon: "square.grid.2x2.fill",              color: "#F5A524").tag("activepills")
-                        SettingsSidebarRow(title: "Agents",       icon: "terminal.fill",                     color: "#3B9EFF").tag("agents")
-                        SettingsSidebarRow(title: "Chat",         icon: "bubble.left.and.bubble.right.fill", color: "#E07950").tag("chat")
-                        SettingsSidebarRow(title: "Integrations", icon: "puzzlepiece.extension.fill",        color: "#7C5CFF").tag("integrations")
-                    }
-                    .listStyle(.sidebar)
-                    .scrollContentBackground(.hidden)
-                }
-            }
-            .frame(width: 200)
-
-            Divider()
-
-            // Detail panel
-            VStack(alignment: .leading, spacing: 0) {
-                Text(sectionTitle)
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 20)
-                    .padding(.bottom, 12)
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 18) {
-                        sectionContent
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 16)
-                }
-                if !statusMessage.isEmpty {
-                    Divider()
-                    Text(statusMessage)
-                        .font(.system(size: 12))
-                        .foregroundColor(statusMessage.hasPrefix("❌") ? .red : .secondary)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 8)
-                }
-            }
+        NavigationSplitView {
+            sidebar
+                .navigationSplitViewColumnWidth(min: 200, ideal: 215)
+        } detail: {
+            detail
         }
         .onAppear {
             #if !APPSTORE
@@ -192,17 +133,88 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - Chrome
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            brandHeader
+            Divider()
+            List(selection: Binding(
+                get: { Optional(selectedSection) },
+                set: { if let v = $0 { selectedSection = v; statusMessage = "" } }
+            )) {
+                ForEach(SettingsSectionEntry.all) { entry in
+                    SettingsSidebarRow(title: entry.title, icon: entry.icon, color: entry.color)
+                        .tag(entry.id)
+                }
+            }
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
+        }
+    }
+
+    private var brandHeader: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Image(nsImage: NSApplication.shared.applicationIconImage)
+                .resizable()
+                .frame(width: 32, height: 32)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("Coucou")
+                    .font(.system(size: 13, weight: .semibold))
+                Text(appVersion)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 16)
+        .padding(.bottom, 10)
+    }
+
+    private var detail: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    sectionContent
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 16)
+            }
+            statusBanner
+        }
+        .navigationTitle(currentSection.title)
+        .toolbar {
+            ToolbarItem(placement: .navigation) {
+                SettingsSectionIcon(entry: currentSection)
+            }
+        }
+    }
+
+    @ViewBuilder private var statusBanner: some View {
+        if !statusMessage.isEmpty {
+            HStack(spacing: 0) {
+                Text(statusMessage)
+                    .font(.system(size: 12))
+                    .foregroundColor(statusMessage.hasPrefix("❌") ? .red : .secondary)
+                    .textSelection(.enabled)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(NSColor.unemphasizedSelectedContentBackgroundColor))
+            )
+            .padding(.horizontal, 20)
+            .padding(.bottom, 14)
+        }
+    }
+
     // MARK: - Section routing
 
-    private var sectionTitle: String {
-        switch selectedSection {
-        case "general":      return "General"
-        case "activepills":  return "Active pills"
-        case "agents":       return "Agents"
-        case "chat":         return "Chat"
-        case "integrations": return "Integrations"
-        default:             return "General"
-        }
+    private var currentSection: SettingsSectionEntry {
+        SettingsSectionEntry.all.first { $0.id == selectedSection } ?? SettingsSectionEntry.all[0]
     }
 
     @ViewBuilder private var sectionContent: some View {
@@ -1227,17 +1239,37 @@ struct SettingsView: View {
     }
 }
 
-// MARK: - Sidebar background (NSVisualEffectView .sidebar)
+// MARK: - Settings sections (sidebar order, titles and icon tiles)
 
-struct SidebarBackground: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let v = NSVisualEffectView()
-        v.material = .sidebar
-        v.blendingMode = .behindWindow
-        v.state = .active
-        return v
+/// `id` values are persisted in the `settingsSection` user default and sent by
+/// `AppDelegate.openSettingsFromNotification` — they are contract values, never rename them.
+struct SettingsSectionEntry: Identifiable {
+    let id:    String
+    let title: String
+    let icon:  String
+    let color: String
+
+    static let all: [SettingsSectionEntry] = [
+        .init(id: "general",      title: "General",      icon: "gearshape.fill",                    color: "#8E939C"),
+        .init(id: "activepills",  title: "Active pills", icon: "square.grid.2x2.fill",              color: "#F5A524"),
+        .init(id: "agents",       title: "Agents",       icon: "terminal.fill",                     color: "#3B9EFF"),
+        .init(id: "chat",         title: "Chat",         icon: "bubble.left.and.bubble.right.fill", color: "#E07950"),
+        .init(id: "integrations", title: "Integrations", icon: "puzzlepiece.extension.fill",        color: "#7C5CFF"),
+    ]
+}
+
+/// The coloured icon tile of the selected section, shown in the window toolbar.
+struct SettingsSectionIcon: View {
+    let entry: SettingsSectionEntry
+
+    var body: some View {
+        Image(systemName: entry.icon)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(.white)
+            .frame(width: 20, height: 20)
+            .background(RoundedRectangle(cornerRadius: 5).fill(Color(hex: entry.color)))
+            .accessibilityHidden(true)
     }
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
 }
 
 // MARK: - Sidebar row (System Settings style icon)
