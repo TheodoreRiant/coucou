@@ -173,14 +173,10 @@ struct SettingsView: View {
 
     private var detail: some View {
         VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    sectionContent
-                }
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
-                .padding(.bottom, 16)
+            Form {
+                sectionContent
             }
+            .formStyle(.grouped)
             statusBanner
         }
         .navigationTitle(currentSection.title)
@@ -230,65 +226,63 @@ struct SettingsView: View {
     // MARK: - General section
 
     @ViewBuilder private var generalSection: some View {
-        GroupBox("Sound") {
-            VStack(alignment: .leading, spacing: 10) {
-                Toggle("Enable sounds", isOn: $state.soundEnabled)
-                HStack(spacing: 8) {
-                    Text("Volume")
-                        .frame(width: 56, alignment: .leading)
+        Section("Sound") {
+            Toggle("Enable sounds", isOn: $state.soundEnabled)
+            LabeledContent("Volume") {
+                HStack(spacing: 10) {
                     Slider(value: $state.soundVolume, in: 0...0.2)
+                        .frame(minWidth: 140)
                         .disabled(!state.soundEnabled)
                     Text("\(Int(state.soundVolume / 0.2 * 100)) %")
-                        .frame(width: 36, alignment: .trailing)
+                        .frame(width: 40, alignment: .trailing)
                         .monospacedDigit()
+                        .foregroundStyle(.secondary)
                 }
             }
-            .padding(6)
         }
 
-        GroupBox("Behavior") {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 8) {
-                    Text("Close after")
+        Section("Behavior") {
+            LabeledContent("Close after") {
+                HStack(spacing: 6) {
                     TextField("60", value: $state.autoCloseInterval, format: .number)
                         .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.trailing)
                         .frame(width: 64)
                     Text("s inactive")
-                }
-                HStack(spacing: 8) {
-                    Text("Hide after")
-                    TextField("3", value: absenceMinutes, format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 48)
-                    Text("min without movement")
+                        .foregroundStyle(.secondary)
                 }
             }
-            .padding(6)
+            LabeledContent("Hide after") {
+                HStack(spacing: 6) {
+                    TextField("3", value: absenceMinutes, format: .number)
+                        .textFieldStyle(.roundedBorder)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 64)
+                    Text("min without movement")
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
 
-        GroupBox("Hotkey") {
-            VStack(alignment: .leading, spacing: 10) {
-                Toggle("Show island with shortcut", isOn: $state.hotkeyEnabled)
-                if state.hotkeyEnabled {
+        Section("Hotkey") {
+            Toggle("Show island with shortcut", isOn: $state.hotkeyEnabled)
+            if state.hotkeyEnabled {
+                LabeledContent("Shortcut") {
                     HStack(spacing: 8) {
-                        Text("Shortcut")
-                            .frame(width: 70, alignment: .leading)
                         ShortcutRecorderButton(flags: $hotkeyFlags, code: $hotkeyCode)
                             .onChange(of: hotkeyFlags) { _, v in state.hotkeyFlags = v }
                             .onChange(of: hotkeyCode)  { _, v in state.hotkeyCode  = v }
                         Text("presses this → island opens")
                             .font(.system(size: 11))
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(.secondary)
                     }
                 }
             }
-            .padding(6)
         }
 
-        GroupBox("Startup") {
+        Section("Startup") {
             Toggle("Launch at Mac startup", isOn: $launchAtStartup)
                 .onChange(of: launchAtStartup) { _, on in toggleStartup(on) }
-                .padding(6)
         }
     }
 
@@ -1376,11 +1370,11 @@ struct ShortcutRecorderButton: View {
             }
         } label: {
             Text(isRecording ? "Press keys…" : shortcutLabel)
-                .font(.system(size: 11, design: .monospaced))
-                .padding(.horizontal, 8).padding(.vertical, 3)
+                .font(.system(size: 12, design: .monospaced))
+                .padding(.horizontal, 10).padding(.vertical, 5)
                 .background(isRecording ? Color.accentColor.opacity(0.12) : Color(NSColor.controlBackgroundColor))
-                .cornerRadius(5)
-                .overlay(RoundedRectangle(cornerRadius: 5).stroke(Color.gray.opacity(0.3), lineWidth: 1))
+                .cornerRadius(6)
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.gray.opacity(0.3), lineWidth: 1))
         }
         .buttonStyle(.plain)
     }
