@@ -289,215 +289,157 @@ struct SettingsView: View {
     // MARK: - Active pills section
 
     @ViewBuilder private var activePillsSection: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 10) {
+        Section {
+            Picker("Main", selection: $state.mainPillId) {
+                ForEach(PillCatalog.available.filter { $0.category == .workspace && !$0.comingSoon }, id: \.id) { def in
+                    Text(def.name).tag(def.id)
+                }
+            }
+            .onChange(of: state.mainPillId) { _, newId in
+                state.activeIntegrations.remove(newId)
+                state.loadIntegrationTasks()
+                state.setFocus(newId)
+            }
+        } footer: {
+            VStack(alignment: .leading, spacing: 3) {
                 Text("Choose the tools you use. Coucou only shows what you declare here.")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-
+                    .foregroundStyle(.secondary)
                 Text("\(state.activeIntegrations.count)/4 slots used")
-                    .font(.system(size: 11))
-                    .foregroundColor(state.activeIntegrations.count >= 4 ? .orange : .secondary)
+                    .foregroundStyle(state.activeIntegrations.count >= 4 ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.secondary))
+            }
+            .font(.system(size: 11))
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
 
-                Picker("Main", selection: $state.mainPillId) {
-                    ForEach(PillCatalog.available.filter { $0.category == .workspace && !$0.comingSoon }, id: \.id) { def in
-                        Text(def.name).tag(def.id)
-                    }
-                }
-                .onChange(of: state.mainPillId) { _, newId in
-                    state.activeIntegrations.remove(newId)
-                    state.loadIntegrationTasks()
-                    state.setFocus(newId)
-                }
-
-                ForEach(PillCategory.allCases, id: \.self) { cat in
-                    let catPills = PillCatalog.available.filter { $0.category == cat }
-                    if !catPills.isEmpty {
-                        Divider()
-                        Text(cat.title)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.secondary)
-                        ForEach(catPills, id: \.id) { def in
-                            pillRow(def)
-                        }
+        ForEach(PillCategory.allCases, id: \.self) { cat in
+            let catPills = PillCatalog.available.filter { $0.category == cat }
+            if !catPills.isEmpty {
+                Section(cat.title) {
+                    ForEach(catPills, id: \.id) { def in
+                        pillRow(def)
                     }
                 }
             }
-            .padding(6)
         }
     }
 
     // MARK: - Agents section
 
     @ViewBuilder private var agentsSection: some View {
-        GroupBox("Claude Code Hooks") {
-            VStack(alignment: .leading, spacing: 10) {
-                if hookNeedsUpdate {
-                    HStack(spacing: 6) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundColor(.orange)
-                        Text("Hooks outdated — update them to answer Claude's questions from the notch")
-                            .font(.system(size: 11))
-                            .foregroundColor(.orange)
-                    }
+        Section("Claude Code Hooks") {
+            if hookNeedsUpdate {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text("Hooks outdated — update them to answer Claude's questions from the notch")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 8)
                     #if APPSTORE
                     Button("Update hooks") { installHooksAppStore() }
                     #else
                     Button("Update hooks") { installHooks() }
                     #endif
                 }
-                #if APPSTORE
-                Text("~/.claude/coucou/nb-hook")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(.secondary)
-                HStack(spacing: 10) {
-                    Button("Install hooks") { installHooksAppStore() }
-                        .buttonStyle(.borderedProminent)
-                    Button("Uninstall") { uninstallHooksAppStore() }
-                        .buttonStyle(.bordered)
-                }
-                #else
-                Text("nb-hook : \(HookServer.hookScriptPath)")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(.secondary)
-                HStack(spacing: 10) {
-                    Button("Install hooks") { installHooks() }
-                        .buttonStyle(.borderedProminent)
-                    Button("Uninstall") { uninstallHooks() }
-                        .buttonStyle(.bordered)
-                }
-                #endif
-
-                #if !APPSTORE
-                if showDiff {
-                    ScrollView {
-                        Text(pendingHookJSON)
-                            .font(.system(size: 10, design: .monospaced))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(height: 140)
-                    .background(Color(NSColor.textBackgroundColor))
-                    .cornerRadius(6)
-
-                    HStack {
-                        Button("Confirm & write") { confirmInstall() }
-                            .buttonStyle(.borderedProminent)
-                        Button("Cancel") { showDiff = false; pendingHookJSON = "" }
-                            .buttonStyle(.bordered)
-                    }
-                }
-                #endif
             }
-            .padding(6)
+            #if APPSTORE
+            HookPathRow(path: "~/.claude/coucou/nb-hook")
+            HStack(spacing: 10) {
+                Button("Install hooks") { installHooksAppStore() }
+                    .buttonStyle(.borderedProminent)
+                Button("Uninstall") { uninstallHooksAppStore() }
+                    .buttonStyle(.bordered)
+            }
+            #else
+            HookPathRow(path: HookServer.hookScriptPath)
+            HStack(spacing: 10) {
+                Button("Install hooks") { installHooks() }
+                    .buttonStyle(.borderedProminent)
+                Button("Uninstall") { uninstallHooks() }
+                    .buttonStyle(.bordered)
+            }
+            #endif
+
+            #if !APPSTORE
+            if showDiff {
+                HookDiffPreview(json: pendingHookJSON, height: 140)
+                HStack(spacing: 10) {
+                    Button("Confirm & write") { confirmInstall() }
+                        .buttonStyle(.borderedProminent)
+                    Button("Cancel") { showDiff = false; pendingHookJSON = "" }
+                        .buttonStyle(.bordered)
+                }
+            }
+            #endif
         }
 
         #if !APPSTORE
-        GroupBox("Gemini CLI Hooks") {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(geminiHooksInstalled
-                     ? "Hooks installed — restart Gemini CLI to activate"
-                     : "~/.gemini/settings.json")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(.secondary)
+        Section("Gemini CLI Hooks") {
+            HookStatusRow(text: geminiHooksInstalled
+                          ? "Hooks installed — restart Gemini CLI to activate"
+                          : "~/.gemini/settings.json")
+            HStack(spacing: 10) {
+                Button("Install hooks") { triggerGeminiPreview(install: true) }
+                    .buttonStyle(.borderedProminent)
+                Button("Uninstall") { triggerGeminiPreview(install: false) }
+                    .buttonStyle(.bordered)
+            }
+            if showGeminiDiff {
+                HookDiffPreview(json: pendingGeminiJSON, height: 140)
                 HStack(spacing: 10) {
-                    Button("Install hooks") { triggerGeminiPreview(install: true) }
+                    Button("Confirm & write") { confirmGeminiOp() }
                         .buttonStyle(.borderedProminent)
-                    Button("Uninstall") { triggerGeminiPreview(install: false) }
+                    Button("Cancel") { showGeminiDiff = false; pendingGeminiJSON = "" }
                         .buttonStyle(.bordered)
                 }
-                if showGeminiDiff {
-                    ScrollView {
-                        Text(pendingGeminiJSON)
-                            .font(.system(size: 10, design: .monospaced))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(height: 140)
-                    .background(Color(NSColor.textBackgroundColor))
-                    .cornerRadius(6)
-                    HStack {
-                        Button("Confirm & write") { confirmGeminiOp() }
-                            .buttonStyle(.borderedProminent)
-                        Button("Cancel") { showGeminiDiff = false; pendingGeminiJSON = "" }
-                            .buttonStyle(.bordered)
-                    }
-                }
             }
-            .padding(6)
         }
 
-        GroupBox("Antigravity Hooks") {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(agyHooksInstalled
-                     ? "Hooks installed — restart Antigravity to activate"
-                     : "~/.gemini/config/hooks.json")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(.secondary)
+        Section("Antigravity Hooks") {
+            HookStatusRow(text: agyHooksInstalled
+                          ? "Hooks installed — restart Antigravity to activate"
+                          : "~/.gemini/config/hooks.json")
+            HStack(spacing: 10) {
+                Button("Install hooks") { triggerAgyPreview(install: true) }
+                    .buttonStyle(.borderedProminent)
+                Button("Uninstall") { triggerAgyPreview(install: false) }
+                    .buttonStyle(.bordered)
+            }
+            if showAgyDiff {
+                HookDiffPreview(json: pendingAgyJSON, height: 140)
                 HStack(spacing: 10) {
-                    Button("Install hooks") { triggerAgyPreview(install: true) }
+                    Button("Confirm & write") { confirmAgyOp() }
                         .buttonStyle(.borderedProminent)
-                    Button("Uninstall") { triggerAgyPreview(install: false) }
+                    Button("Cancel") { showAgyDiff = false; pendingAgyJSON = "" }
                         .buttonStyle(.bordered)
                 }
-                if showAgyDiff {
-                    ScrollView {
-                        Text(pendingAgyJSON)
-                            .font(.system(size: 10, design: .monospaced))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(height: 140)
-                    .background(Color(NSColor.textBackgroundColor))
-                    .cornerRadius(6)
-                    HStack {
-                        Button("Confirm & write") { confirmAgyOp() }
-                            .buttonStyle(.borderedProminent)
-                        Button("Cancel") { showAgyDiff = false; pendingAgyJSON = "" }
-                            .buttonStyle(.bordered)
-                    }
-                }
             }
-            .padding(6)
         }
 
-        GroupBox("Codex Hooks") {
-            VStack(alignment: .leading, spacing: 10) {
-                Text(codexHooksInstalled
-                     ? "Hooks installed — open Codex and run /hooks or open Hooks in the app's settings to trust them"
-                     : "~/.codex/hooks.json")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundColor(.secondary)
+        Section("Codex Hooks") {
+            HookStatusRow(text: codexHooksInstalled
+                          ? "Hooks installed — open Codex and run /hooks or open Hooks in the app's settings to trust them"
+                          : "~/.codex/hooks.json")
+            HStack(spacing: 10) {
+                Button("Install hooks") { triggerCodexPreview(install: true) }
+                    .buttonStyle(.borderedProminent)
+                Button("Uninstall") { triggerCodexPreview(install: false) }
+                    .buttonStyle(.bordered)
+            }
+            if showCodexDiff {
+                HookDiffPreview(json: pendingCodexJSON, height: 140)
                 HStack(spacing: 10) {
-                    Button("Install hooks") { triggerCodexPreview(install: true) }
+                    Button("Confirm & write") { confirmCodexOp() }
                         .buttonStyle(.borderedProminent)
-                    Button("Uninstall") { triggerCodexPreview(install: false) }
+                    Button("Cancel") { showCodexDiff = false; pendingCodexJSON = "" }
                         .buttonStyle(.bordered)
                 }
-                if showCodexDiff {
-                    ScrollView {
-                        Text(pendingCodexJSON)
-                            .font(.system(size: 10, design: .monospaced))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(height: 140)
-                    .background(Color(NSColor.textBackgroundColor))
-                    .cornerRadius(6)
-                    HStack {
-                        Button("Confirm & write") { confirmCodexOp() }
-                            .buttonStyle(.borderedProminent)
-                        Button("Cancel") { showCodexDiff = false; pendingCodexJSON = "" }
-                            .buttonStyle(.bordered)
-                    }
-                }
             }
-            .padding(6)
         }
 
-        GroupBox("Plan usage") {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Shows your Claude plan usage (5-hour and weekly limits) in the notch header. Coucou adds a status line relay to ~/.claude/settings.json. If you already have a status line, it keeps working as before. Pro and Max plans only.")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                Toggle("Show in the notch", isOn: Binding(
+        Section {
+            Toggle("Show in the notch", isOn: Binding(
                     get: { state.showPlanInNotch || planTogglePending },
                     set: { on in
                         if on {
@@ -513,43 +455,36 @@ struct SettingsView: View {
                         }
                     }
                 ))
-                HStack(spacing: 10) {
-                    if state.planRelayInstalled {
-                        Text("Relay: installed")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                        Button("Uninstall relay") { uninstallStatusLine() }
-                            .buttonStyle(.bordered)
-                    } else {
-                        Text("Relay: not installed")
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                        Button("Install relay") { installStatusLine() }
-                            .buttonStyle(.borderedProminent)
-                    }
-                }
-                if showStatusLineDiff {
-                    ScrollView {
-                        Text(pendingStatusLineJSON)
-                            .font(.system(size: 10, design: .monospaced))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                    .frame(height: 100)
-                    .background(Color(NSColor.textBackgroundColor))
-                    .cornerRadius(6)
-                    HStack {
-                        Button("Confirm & write") { confirmStatusLine() }
-                            .buttonStyle(.borderedProminent)
-                        Button("Cancel") {
-                            showStatusLineDiff = false
-                            pendingStatusLineJSON = ""
-                            planTogglePending = false
-                        }
+            LabeledContent(state.planRelayInstalled ? "Relay: installed" : "Relay: not installed") {
+                if state.planRelayInstalled {
+                    Button("Uninstall relay") { uninstallStatusLine() }
                         .buttonStyle(.bordered)
-                    }
+                } else {
+                    Button("Install relay") { installStatusLine() }
+                        .buttonStyle(.borderedProminent)
                 }
             }
-            .padding(6)
+            if showStatusLineDiff {
+                HookDiffPreview(json: pendingStatusLineJSON, height: 100)
+                HStack(spacing: 10) {
+                    Button("Confirm & write") { confirmStatusLine() }
+                        .buttonStyle(.borderedProminent)
+                    Button("Cancel") {
+                        showStatusLineDiff = false
+                        pendingStatusLineJSON = ""
+                        planTogglePending = false
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+        } header: {
+            Text("Plan usage")
+        } footer: {
+            Text("Shows your Claude plan usage (5-hour and weekly limits) in the notch header. Coucou adds a status line relay to ~/.claude/settings.json. If you already have a status line, it keeps working as before. Pro and Max plans only.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         #endif
     }
@@ -557,259 +492,245 @@ struct SettingsView: View {
     // MARK: - Chat section
 
     @ViewBuilder private var chatSection: some View {
-        GroupBox("Anthropic API") {
-            VStack(alignment: .leading, spacing: 8) {
-                SecureField("API key (sk-ant-…)", text: $apiKey)
-                    .textFieldStyle(.roundedBorder)
-                Button("Save") {
-                    KeychainStore.shared.set("anthropic-api-key", value: apiKey)
-                    statusMessage = "✓ Key saved."
-                }
-                .buttonStyle(.borderedProminent)
-
-                Divider().padding(.vertical, 2)
-
-                Picker("Model", selection: $modelChoice) {
-                    ForEach(displayModels, id: \.id) { preset in
-                        Text(preset.label).tag(preset.id)
+        Section {
+            LabeledContent("API key") {
+                HStack(spacing: 8) {
+                    SecureField("sk-ant-…", text: $apiKey)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Save") {
+                        KeychainStore.shared.set("anthropic-api-key", value: apiKey)
+                        statusMessage = "✓ Key saved."
                     }
-                    Text("Custom…").tag(Self.customModelTag)
+                    .buttonStyle(.borderedProminent)
                 }
-                .onChange(of: modelChoice) { _, choice in
-                    if choice != Self.customModelTag {
-                        state.claudeModel = choice
-                    } else {
-                        applyCustomModel(customModel)
-                    }
+            }
+            Picker("Model", selection: $modelChoice) {
+                ForEach(displayModels, id: \.id) { preset in
+                    Text(preset.label).tag(preset.id)
                 }
-
-                if modelChoice == Self.customModelTag {
-                    TextField("Model ID (e.g. claude-sonnet-4-6)", text: $customModel)
+                Text("Custom…").tag(Self.customModelTag)
+            }
+            .onChange(of: modelChoice) { _, choice in
+                if choice != Self.customModelTag {
+                    state.claudeModel = choice
+                } else {
+                    applyCustomModel(customModel)
+                }
+            }
+            if modelChoice == Self.customModelTag {
+                LabeledContent("Model ID") {
+                    TextField("claude-sonnet-4-6", text: $customModel)
                         .textFieldStyle(.roundedBorder)
                         .onChange(of: customModel) { _, value in applyCustomModel(value) }
                 }
-
-                Text("Used by the chat. The list comes from your Anthropic account.")
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
             }
-            .padding(6)
+        } header: {
+            Text("Anthropic API")
+        } footer: {
+            SectionNote("Used by the chat. The list comes from your Anthropic account.")
         }
 
-        GroupBox("Chat — other providers") {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("To use Google Gemini or OpenAI from the chat. Keys are stored in the Keychain.")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-
+        Section {
+            ProviderDot(color: "#4285F4", name: "Google AI")
+            LabeledContent("API key") {
                 HStack(spacing: 8) {
-                    Circle().fill(Color(hex: "#4285F4")).frame(width: 8, height: 8)
-                    Text("Google AI").font(.system(size: 12, weight: .semibold))
+                    SecureField("AI Studio", text: $googleKey)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Save") {
+                        KeychainStore.shared.set("google-api-key", value: googleKey)
+                        statusMessage = "✓ Google key saved."
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                SecureField("API key (AI Studio)", text: $googleKey)
-                    .textFieldStyle(.roundedBorder)
-                Button("Save") {
-                    KeychainStore.shared.set("google-api-key", value: googleKey)
-                    statusMessage = "✓ Google key saved."
-                }
-                .buttonStyle(.borderedProminent)
-
-                Divider()
-
-                HStack(spacing: 8) {
-                    Circle().fill(Color(hex: "#10A37F")).frame(width: 8, height: 8)
-                    Text("OpenAI").font(.system(size: 12, weight: .semibold))
-                }
-                SecureField("API key (sk-…)", text: $openAIKey)
-                    .textFieldStyle(.roundedBorder)
-                Button("Save") {
-                    KeychainStore.shared.set("openai-api-key", value: openAIKey)
-                    statusMessage = "✓ OpenAI key saved."
-                }
-                .buttonStyle(.borderedProminent)
             }
-            .padding(.vertical, 4)
+
+            ProviderDot(color: "#10A37F", name: "OpenAI")
+            LabeledContent("API key") {
+                HStack(spacing: 8) {
+                    SecureField("sk-…", text: $openAIKey)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Save") {
+                        KeychainStore.shared.set("openai-api-key", value: openAIKey)
+                        statusMessage = "✓ OpenAI key saved."
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+        } header: {
+            Text("Chat — other providers")
+        } footer: {
+            SectionNote("To use Google Gemini or OpenAI from the chat. Keys are stored in the Keychain.")
         }
 
-        GroupBox("Local models") {
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Connect to a local model server. No API key needed.")
-                    .font(.system(size: 12))
-                    .foregroundColor(.secondary)
-
-                // ── Ollama ──────────────────────────────────────────────────────
-                HStack(spacing: 8) {
-                    Circle().fill(Color(hex: "#FACC15")).frame(width: 8, height: 8)
-                    Text("Ollama").font(.system(size: 12, weight: .semibold))
-                    if !state.ollamaServerURL.isEmpty {
-                        Text("Connected")
-                            .font(.system(size: 10))
-                            .foregroundColor(Color(hex: "#22C55E"))
+        Section {
+            ProviderDot(color: "#FACC15", name: "Ollama", connected: !state.ollamaServerURL.isEmpty)
+            if state.ollamaServerURL.isEmpty {
+                LabeledContent("Server") {
+                    HStack(spacing: 8) {
+                        TextField("http://127.0.0.1:11434", text: $ollamaURL)
+                            .textFieldStyle(.roundedBorder)
+                        Button(connectingOllama ? "Connecting…" : "Connect") {
+                            Task { await connectLocal(provider: .ollama) }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(connectingOllama)
                     }
                 }
-                if state.ollamaServerURL.isEmpty {
-                    TextField("http://127.0.0.1:11434", text: $ollamaURL)
-                        .textFieldStyle(.roundedBorder)
-                    Button(connectingOllama ? "Connecting…" : "Connect") {
-                        Task { await connectLocal(provider: .ollama) }
+            } else {
+                LabeledContent("Server") {
+                    HStack(spacing: 8) {
+                        Text(state.ollamaServerURL)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                        Button("Disconnect") {
+                            state.ollamaServerURL = ""
+                            ollamaURL = ""
+                            state.fetchedProviderModels[.ollama] = nil
+                            state.providerModelFetchError[.ollama] = nil
+                            if state.chatProvider == .ollama { state.chatProvider = .anthropic }
+                            statusMessage = "Ollama disconnected."
+                        }
+                        .buttonStyle(.bordered)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(connectingOllama)
-                } else {
-                    Text(state.ollamaServerURL)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    Button("Disconnect") {
-                        state.ollamaServerURL = ""
-                        ollamaURL = ""
-                        state.fetchedProviderModels[.ollama] = nil
-                        state.providerModelFetchError[.ollama] = nil
-                        if state.chatProvider == .ollama { state.chatProvider = .anthropic }
-                        statusMessage = "Ollama disconnected."
-                    }
-                    .buttonStyle(.bordered)
-                }
-
-                Divider()
-
-                // ── LM Studio ───────────────────────────────────────────────────
-                HStack(spacing: 8) {
-                    Circle().fill(Color(hex: "#A3E635")).frame(width: 8, height: 8)
-                    Text("LM Studio").font(.system(size: 12, weight: .semibold))
-                    if !state.lmstudioServerURL.isEmpty {
-                        Text("Connected")
-                            .font(.system(size: 10))
-                            .foregroundColor(Color(hex: "#22C55E"))
-                    }
-                }
-                if state.lmstudioServerURL.isEmpty {
-                    TextField("http://127.0.0.1:1234", text: $lmstudioURL)
-                        .textFieldStyle(.roundedBorder)
-                    Button(connectingLMStudio ? "Connecting…" : "Connect") {
-                        Task { await connectLocal(provider: .lmstudio) }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(connectingLMStudio)
-                } else {
-                    Text(state.lmstudioServerURL)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    Button("Disconnect") {
-                        state.lmstudioServerURL = ""
-                        lmstudioURL = ""
-                        state.fetchedProviderModels[.lmstudio] = nil
-                        state.providerModelFetchError[.lmstudio] = nil
-                        if state.chatProvider == .lmstudio { state.chatProvider = .anthropic }
-                        statusMessage = "LM Studio disconnected."
-                    }
-                    .buttonStyle(.bordered)
                 }
             }
-            .padding(.vertical, 4)
+
+            ProviderDot(color: "#A3E635", name: "LM Studio", connected: !state.lmstudioServerURL.isEmpty)
+            if state.lmstudioServerURL.isEmpty {
+                LabeledContent("Server") {
+                    HStack(spacing: 8) {
+                        TextField("http://127.0.0.1:1234", text: $lmstudioURL)
+                            .textFieldStyle(.roundedBorder)
+                        Button(connectingLMStudio ? "Connecting…" : "Connect") {
+                            Task { await connectLocal(provider: .lmstudio) }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(connectingLMStudio)
+                    }
+                }
+            } else {
+                LabeledContent("Server") {
+                    HStack(spacing: 8) {
+                        Text(state.lmstudioServerURL)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                        Button("Disconnect") {
+                            state.lmstudioServerURL = ""
+                            lmstudioURL = ""
+                            state.fetchedProviderModels[.lmstudio] = nil
+                            state.providerModelFetchError[.lmstudio] = nil
+                            if state.chatProvider == .lmstudio { state.chatProvider = .anthropic }
+                            statusMessage = "LM Studio disconnected."
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+            }
+        } header: {
+            Text("Local models")
+        } footer: {
+            SectionNote("Connect to a local model server. No API key needed.")
         }
     }
 
     // MARK: - Integrations section
 
     @ViewBuilder private var integrationsSection: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 14) {
+        Section {
+            LabeledContent("API key") {
+                SecureField("re_…", text: $resendKey)
+                    .textFieldStyle(.roundedBorder)
+            }
+            LabeledContent("From address") {
+                TextField("you@yourdomain.com", text: $resendFrom)
+                    .textFieldStyle(.roundedBorder)
+            }
+        } header: {
+            ProviderDot(color: "#22C55E", name: "Resend")
+        }
 
-                // Resend
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 6) {
-                        Circle().fill(Color(hex: "#22C55E")).frame(width: 8, height: 8)
-                        Text("Resend").font(.system(size: 12, weight: .semibold))
-                    }
-                    SecureField("API key  (re_…)", text: $resendKey)
-                        .textFieldStyle(.roundedBorder)
-                    TextField("From address  (you@yourdomain.com)", text: $resendFrom)
-                        .textFieldStyle(.roundedBorder)
-                }
+        Section {
+            LabeledContent("Instance URL") {
+                TextField("https://…", text: $n8nUrl)
+                    .textFieldStyle(.roundedBorder)
+            }
+            LabeledContent("API key") {
+                SecureField("", text: $n8nKey)
+                    .textFieldStyle(.roundedBorder)
+            }
+            IntegrationFilterRow(
+                label: "Workflows",
+                items: n8nWorkflows,
+                filter: $state.n8nWorkflowFilter,
+                loading: loadingN8n,
+                onLoad: loadN8nWorkflows
+            )
+        } header: {
+            ProviderDot(color: "#F29B38", name: "n8n")
+        }
 
-                // n8n
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 6) {
-                        Circle().fill(Color(hex: "#F29B38")).frame(width: 8, height: 8)
-                        Text("n8n").font(.system(size: 12, weight: .semibold))
-                    }
-                    TextField("Instance URL  (https://…)", text: $n8nUrl)
-                        .textFieldStyle(.roundedBorder)
-                    SecureField("API key", text: $n8nKey)
-                        .textFieldStyle(.roundedBorder)
-                    IntegrationFilterRow(
-                        label: "Workflows",
-                        items: n8nWorkflows,
-                        filter: $state.n8nWorkflowFilter,
-                        loading: loadingN8n,
-                        onLoad: loadN8nWorkflows
-                    )
-                }
+        Section {
+            LabeledContent("Token") {
+                SecureField("", text: $vercelToken)
+                    .textFieldStyle(.roundedBorder)
+            }
+            IntegrationFilterRow(
+                label: "Projects",
+                items: vercelProjects,
+                filter: $state.vercelProjectFilter,
+                loading: loadingVercel,
+                onLoad: loadVercelProjects
+            )
+        } header: {
+            ProviderDot(color: "#7C5CFF", name: "Vercel")
+        }
 
-                // Vercel
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 6) {
-                        Circle().fill(Color(hex: "#7C5CFF")).frame(width: 8, height: 8)
-                        Text("Vercel").font(.system(size: 12, weight: .semibold))
-                    }
-                    SecureField("Token", text: $vercelToken)
-                        .textFieldStyle(.roundedBorder)
-                    IntegrationFilterRow(
-                        label: "Projects",
-                        items: vercelProjects,
-                        filter: $state.vercelProjectFilter,
-                        loading: loadingVercel,
-                        onLoad: loadVercelProjects
-                    )
-                }
+        Section {
+            LabeledContent("Personal Access Token") {
+                SecureField("", text: $githubToken)
+                    .textFieldStyle(.roundedBorder)
+            }
+        } header: {
+            ProviderDot(color: "#F4505E", name: "GitHub")
+        } footer: {
+            SectionNote("Classic token with repo scope, or fine-grained with read access to Pull requests, Commit statuses and Actions.")
+        }
 
-                // GitHub
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 6) {
-                        Circle().fill(Color(hex: "#F4505E")).frame(width: 8, height: 8)
-                        Text("GitHub").font(.system(size: 12, weight: .semibold))
-                    }
-                    SecureField("Personal Access Token", text: $githubToken)
-                        .textFieldStyle(.roundedBorder)
-                    Text("Classic token with repo scope, or fine-grained with read access to Pull requests, Commit statuses and Actions.")
-                        .font(.system(size: 10))
-                        .foregroundColor(Color(hex: "#8E939C"))
-                }
+        Section {
+            LabeledContent("Secret key") {
+                SecureField("sk_live_… or sk_test_…", text: $stripeKey)
+                    .textFieldStyle(.roundedBorder)
+            }
+        } header: {
+            ProviderDot(color: "#0570DE", name: "Stripe")
+        }
 
-                // Stripe
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 6) {
-                        Circle().fill(Color(hex: "#0570DE")).frame(width: 8, height: 8)
-                        Text("Stripe").font(.system(size: 12, weight: .semibold))
-                    }
-                    SecureField("Secret key  (sk_live_… or sk_test_…)", text: $stripeKey)
-                        .textFieldStyle(.roundedBorder)
-                }
+        Section {
+            LabeledContent("API key") {
+                SecureField("cal_live_…", text: $calcomKey)
+                    .textFieldStyle(.roundedBorder)
+            }
+        } header: {
+            ProviderDot(color: "#C9956A", name: "Cal.com")
+        }
 
-                // Cal.com
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 6) {
-                        Circle().fill(Color(hex: "#C9956A")).frame(width: 8, height: 8)
-                        Text("Cal.com").font(.system(size: 12, weight: .semibold))
-                    }
-                    SecureField("API key  (cal_live_…)", text: $calcomKey)
-                        .textFieldStyle(.roundedBorder)
-                }
+        Section {
+            LabeledContent("Integration token") {
+                SecureField("secret_…", text: $notionKey)
+                    .textFieldStyle(.roundedBorder)
+            }
+        } header: {
+            ProviderDot(color: "#E8E8E8", name: "Notion")
+        }
 
-                // Notion
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 6) {
-                        Circle().fill(Color(hex: "#E8E8E8")).frame(width: 8, height: 8)
-                        Text("Notion").font(.system(size: 12, weight: .semibold))
-                    }
-                    SecureField("Integration token  (secret_…)", text: $notionKey)
-                        .textFieldStyle(.roundedBorder)
-                }
-
+        Section {
+            HStack {
+                Spacer(minLength: 0)
                 Button("Save integrations") { saveIntegrations() }
                     .buttonStyle(.borderedProminent)
             }
-            .padding(6)
         }
     }
 
@@ -1286,6 +1207,97 @@ struct SettingsSidebarRow: View {
     }
 }
 
+// MARK: - Form rows shared by several sections
+
+/// A provider name preceded by its brand dot, used as a Section header or an in-section row.
+struct ProviderDot: View {
+    let color: String
+    let name: String
+    var connected: Bool = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Circle().fill(Color(hex: color)).frame(width: 8, height: 8)
+            Text(name)
+            if connected {
+                Text("Connected")
+                    .font(.system(size: 10))
+                    .foregroundColor(Color(hex: "#22C55E"))
+            }
+        }
+    }
+}
+
+/// The explanatory line under a Section. A Form footer is already dimmed and
+/// small; this only pins the alignment and lets it wrap.
+struct SectionNote: View {
+    let text: String
+
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11))
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// The path of a hook script. Truncated in the middle rather than wrapped, so a
+/// deep path stays readable at the minimum window width, and selectable so it
+/// can be copied.
+struct HookPathRow: View {
+    let path: String
+
+    var body: some View {
+        LabeledContent("nb-hook") {
+            Text(path)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+    }
+}
+
+/// The one-line state of an agent's hooks: either where they would be written,
+/// or what the user has to do next.
+struct HookStatusRow: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .textSelection(.enabled)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// The JSON Coucou is about to write, shown before the user confirms.
+struct HookDiffPreview: View {
+    let json: String
+    let height: CGFloat
+
+    var body: some View {
+        ScrollView {
+            Text(json)
+                .font(.system(size: 10, design: .monospaced))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(6)
+        }
+        .frame(height: height)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color(NSColor.textBackgroundColor))
+        )
+    }
+}
+
 // MARK: - Integration filter row (reusable for Vercel / n8n)
 
 struct IntegrationFilterRow: View {
@@ -1296,24 +1308,19 @@ struct IntegrationFilterRow: View {
     let onLoad: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Text(label)
-                    .font(.system(size: 11))
-                    .foregroundColor(.secondary)
-                Spacer()
-                if loading {
-                    ProgressView().scaleEffect(0.6)
-                } else {
-                    Button(items.isEmpty ? "Load list" : "Refresh") { onLoad() }
-                        .buttonStyle(.bordered)
-                        .controlSize(.mini)
-                }
-                if !filter.isEmpty {
-                    Button("Clear") { filter = [] }
-                        .buttonStyle(.bordered)
-                        .controlSize(.mini)
-                        .foregroundColor(.secondary)
+        VStack(alignment: .leading, spacing: 6) {
+            LabeledContent(label) {
+                HStack(spacing: 8) {
+                    if loading {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Button(items.isEmpty ? "Load list" : "Refresh") { onLoad() }
+                            .buttonStyle(.bordered)
+                    }
+                    if !filter.isEmpty {
+                        Button("Clear") { filter = [] }
+                            .buttonStyle(.bordered)
+                    }
                 }
             }
             if !items.isEmpty {
@@ -1334,11 +1341,10 @@ struct IntegrationFilterRow: View {
                         .toggleStyle(.checkbox)
                     }
                 }
-                .padding(.leading, 4)
                 if !filter.isEmpty {
                     Text("Watching \(filter.count) of \(items.count)")
                         .font(.system(size: 10))
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(.secondary)
                 }
             }
         }
